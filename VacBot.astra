@@ -1,0 +1,122 @@
+agent VacBot {
+    module EIS ei;
+    module Console C;
+    module Routing routing ;
+    types vacbot {
+        formula task(string);
+        formula location(long,long);
+        formula obstacle(long, long, string, string);
+        formula direction(string);
+        formula route(list);
+        formula target(long, long);
+    }
+    rule +!main([string vacbot]) {
+        ei.join("hw");
+        ei.link(vacbot);
+        C.println("VacBot activated");
+        string a;
+        !task(a);
+    }
+    rule +$ei.event(location(long X, long y)) {
+        ei.dumpState();
+        !update(); 
+        string a;
+        !task(a);
+        }
+
+    rule +!task(string action) : ei.square("here", "dust"){
+        ei.clean();
+        ei.move("forward");
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "dust"){
+        ei.move("forward");
+        action = "move";
+    }
+    rule +!task(string action) : ei.square("left", "dust"){
+        ei.move("left");
+        action = "move";
+    }
+    rule +!task(string action) : ei.square("right", "dust"){
+        ei.move("right");
+        action = "move";
+    }
+    rule +!task(string action) : ei.square("forward", "empty"){
+        ei.move("forward");
+        action = "move";
+    }
+    rule +!task(string action) : ei.square("here", "dust"){
+        ei.clean();
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("left", "obstacle") & ei.square("right", "obstacle") {
+        ei.move("back");
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("left", "obstacle") {
+        ei.move("right");
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("right", "obstacle") {
+        ei.move("left");
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "obstacle") {
+        ei.move("left");
+        !task(action);
+    }
+        rule +!task(string action) : ei.square("forward", "vac") & ei.square("left", "vac") & ei.square("right", "vac") {
+        ei.move("back");
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "vac") & ei.square("left", "vac") {
+        ei.move("right");
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "vac") & ei.square("right", "vac") {
+        ei.move("left");
+        !task(action);
+    }
+    rule +!task(string action) : ei.square("forward", "vac") {
+        ei.move("left");
+        !task(action);
+    }
+
+
+
+    rule +!update() : ei.location(long X, long Y) & ei.direction(string D){
+        foreach(ei.square(string location, "obstacle") & 
+        ~routing.obstacle(X, Y, D, location)) {
+            routing.recordObstacle(X, Y, D, location);
+        }
+        long maxX = routing.maxX() +1;
+        long maxY = routing.maxY() + 1;
+        routing.updateBoundary(maxX, maxY);
+        C.println("Updated boundary guess: maxX=" + routing.maxX() + " maxY=" + routing.maxY());
+    }
+    
+    rule +!task(string action) : route([move(string direction)]) {
+        -route([move(direction)]);
+        !go(move(direction), action);
+    }
+    rule +!task(string action) : route([move(string direction) | list L]) {
+        -+route(L);
+        !go(move(direction), action);
+    }
+
+    rule +!go(move(string direction), string action) {
+        ei.move(direction);
+        action = direction;
+    }
+
+    rule +!task(string action) : ei.location(long X, long Y) {
+        C.println("Routing from " + X + " " + Y);
+        list CodedRoute = routing.routeTo(X, Y, 1l, 1l);
+        C.println("Our Set Route : " + CodedRoute);
+        // S.trace(true);
+        ei.dumpBeliefs();
+        routing.displayMap();
+        +route(CodedRoute);
+        !task(action);
+    }
+}
