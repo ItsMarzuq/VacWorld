@@ -1,0 +1,323 @@
+agent Leader {
+    module EIS ei;
+    module Console C;
+    module Routing routing;
+    module System S;
+    
+    types leader {
+        formula task(string);
+        formula location(long, long);
+        formula obstacle(long, long, string, string);
+        formula direction(string);
+        formula dustLocation(long, long);
+        formula assignedTask(string, long, long);
+        formula requestTask();
+        formula assignTask(long, long);
+        formula noTask();
+        formula taskComplete(long, long);
+        formula taskUnreachable(long, long);
+        formula visited(long, long);
+        formula visitCount(int);
+    }
+    
+    rule +!main([string vacbot]) {
+        ei.join("hw");
+        ei.link(vacbot);
+        C.println("Leader " + vacbot + " activated");
+        +visitCount(0);
+        string a;
+        !task(a);
+    }
+    
+    // Triggered when leader moves to a new location
+    rule +$ei.event(location(long X, long Y)) {
+        !update();
+        !trackVisit(X, Y);
+        string a;
+        !task(a);
+    }
+    
+    // Track visited locations to help avoid loops
+    rule +!trackVisit(long X, long Y) {
+        if (~visited(X, Y)) {
+            +visited(X, Y);
+        }
+        
+        // Increment visit counter and clear history periodically
+        if (visitCount(int count)) {
+            int newCount = count + 1;
+            -+visitCount(newCount);
+            
+            // Clear visited history every 50 moves to allow revisiting
+            if (newCount > 50) {
+                foreach(visited(long vX, long vY)) {
+                    -visited(vX, vY);
+                }
+                -+visitCount(0);
+                C.println("Leader: Cleared visit history");
+            }
+        }
+    }
+    
+    // Update obstacles as they are discovered
+    rule +!update() : ei.location(long X, long Y) & ei.direction(string D) {
+        foreach(ei.square(string location, "obstacle") & 
+                ~routing.obstacle(X, Y, D, location)) {
+            routing.recordObstacle(X, Y, D, location);
+        }
+        long maxX = routing.maxX() + 1;
+        long maxY = routing.maxY() + 1;
+        routing.updateBoundary(maxX, maxY);
+        
+        // Check for dust and record it
+        !checkForDust();
+    }
+    
+    // Check visible squares for dust and store locations
+    rule +!checkForDust() : ei.location(long X, long Y) & ei.direction(string D) {
+        foreach(ei.square(string location, "dust")) {
+            !recordDustLocation(X, Y, D, location);
+        }
+    }
+    
+    // Record dust location in absolute coordinates
+    rule +!recordDustLocation(long X, long Y, string D, "here") {
+        if (~dustLocation(X, Y)) {
+            +dustLocation(X, Y);
+            C.println("Leader: Found dust at (" + X + ", " + Y + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "north", "forward") {
+        long newY = Y - 1;
+        if (~dustLocation(X, newY)) {
+            +dustLocation(X, newY);
+            C.println("Leader: Found dust at (" + X + ", " + newY + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "south", "forward") {
+        long newY = Y + 1;
+        if (~dustLocation(X, newY)) {
+            +dustLocation(X, newY);
+            C.println("Leader: Found dust at (" + X + ", " + newY + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "east", "forward") {
+        long newX = X + 1;
+        if (~dustLocation(newX, Y)) {
+            +dustLocation(newX, Y);
+            C.println("Leader: Found dust at (" + newX + ", " + Y + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "west", "forward") {
+        long newX = X - 1;
+        if (~dustLocation(newX, Y)) {
+            +dustLocation(newX, Y);
+            C.println("Leader: Found dust at (" + newX + ", " + Y + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "north", "left") {
+        long newX = X - 1;
+        if (~dustLocation(newX, Y)) {
+            +dustLocation(newX, Y);
+            C.println("Leader: Found dust at (" + newX + ", " + Y + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "south", "left") {
+        long newX = X + 1;
+        if (~dustLocation(newX, Y)) {
+            +dustLocation(newX, Y);
+            C.println("Leader: Found dust at (" + newX + ", " + Y + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "east", "left") {
+        long newY = Y - 1;
+        if (~dustLocation(X, newY)) {
+            +dustLocation(X, newY);
+            C.println("Leader: Found dust at (" + X + ", " + newY + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "west", "left") {
+        long newY = Y + 1;
+        if (~dustLocation(X, newY)) {
+            +dustLocation(X, newY);
+            C.println("Leader: Found dust at (" + X + ", " + newY + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "north", "right") {
+        long newX = X + 1;
+        if (~dustLocation(newX, Y)) {
+            +dustLocation(newX, Y);
+            C.println("Leader: Found dust at (" + newX + ", " + Y + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "south", "right") {
+        long newX = X - 1;
+        if (~dustLocation(newX, Y)) {
+            +dustLocation(newX, Y);
+            C.println("Leader: Found dust at (" + newX + ", " + Y + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "east", "right") {
+        long newY = Y + 1;
+        if (~dustLocation(X, newY)) {
+            +dustLocation(X, newY);
+            C.println("Leader: Found dust at (" + X + ", " + newY + ")");
+        }
+    }
+    
+    rule +!recordDustLocation(long X, long Y, "west", "right") {
+        long newY = Y - 1;
+        if (~dustLocation(X, newY)) {
+            +dustLocation(X, newY);
+            C.println("Leader: Found dust at (" + X + ", " + newY + ")");
+        }
+    }
+    
+    // Handle task requests - find unassigned dust and assign it
+    rule @message("request", string follower, requestTask()) : dustLocation(long dustX, long dustY) & ~assignedTask(string anyAgent, dustX, dustY) {
+        C.println("Leader: Assigning task (" + dustX + ", " + dustY + ") to " + follower);
+        +assignedTask(follower, dustX, dustY);
+        send(follower, "inform", assignTask(dustX, dustY));
+    }
+    
+    rule @message("request", string follower, requestTask()) {
+        C.println("Leader: No tasks available for " + follower);
+        send(follower, "inform", noTask());
+    }
+    
+    // Handle task completion
+    rule @message("inform", string follower, taskComplete(long X, long Y)) {
+        C.println("Leader: Task (" + X + ", " + Y + ") completed by " + follower);
+        -dustLocation(X, Y);
+        if (assignedTask(follower, X, Y)) {
+            -assignedTask(follower, X, Y);
+        }
+    }
+    
+    // Handle unreachable tasks - remove from assigned
+    rule @message("inform", string follower, taskUnreachable(long X, long Y)) {
+        C.println("Leader: Task (" + X + ", " + Y + ") unreachable by " + follower + ", will reassign");
+        if (assignedTask(follower, X, Y)) {
+            -assignedTask(follower, X, Y);
+        }
+    }
+    
+    // CLEAN DUST when standing on it, then move smartly
+    rule +!task(string action) : ei.square("here", "dust") & ei.location(long X, long Y) {
+        C.println("Leader: Cleaning dust at (" + X + ", " + Y + ")");
+        ei.clean();
+        -dustLocation(X, Y);
+        !smartMove();
+        action = "clean";
+    }
+    
+    // Smart movement after cleaning - try multiple directions
+    rule +!smartMove() {
+        if (ei.square("forward", "empty") | ei.square("forward", "dust")) {
+            ei.move("forward");
+        } else {
+            if (ei.square("left", "empty") | ei.square("left", "dust")) {
+                ei.move("left");
+            } else {
+                if (ei.square("right", "empty") | ei.square("right", "dust")) {
+                    ei.move("right");
+                } else {
+                    ei.move("back");
+                }
+            }
+        }
+    }
+    
+    // Prefer moving to dust or empty squares
+    rule +!task(string action) : ei.square("forward", "dust") {
+        ei.move("forward");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("forward", "empty") {
+        ei.move("forward");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("left", "dust") {
+        ei.move("left");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("left", "empty") {
+        ei.move("left");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("right", "dust") {
+        ei.move("right");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("right", "empty") {
+        ei.move("right");
+        action = "move";
+    }
+    
+    // Dead end handling - all directions blocked
+    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("left", "obstacle") & ei.square("right", "obstacle") {
+        C.println("Leader: In dead end, moving back");
+        ei.move("back");
+        action = "move";
+    }
+    
+    // Partial blocking scenarios
+    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("left", "obstacle") {
+        ei.move("right");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("right", "obstacle") {
+        ei.move("left");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("forward", "obstacle") {
+        ei.move("left");
+        action = "move";
+    }
+    
+    // VacBot collision avoidance
+    rule +!task(string action) : ei.square("forward", "vac") & ei.square("left", "vac") & ei.square("right", "vac") {
+        C.println("Leader: Surrounded by VacBots, moving back");
+        ei.move("back");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("forward", "vac") & ei.square("left", "vac") {
+        ei.move("right");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("forward", "vac") & ei.square("right", "vac") {
+        ei.move("left");
+        action = "move";
+    }
+    
+    rule +!task(string action) : ei.square("forward", "vac") {
+        ei.move("left");
+        action = "move";
+    }
+    
+    // Default: move forward
+    rule +!task(string action) {
+        ei.move("forward");
+        action = "move";
+    }
+}

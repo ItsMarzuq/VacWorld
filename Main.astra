@@ -8,11 +8,27 @@ agent Main {
         ei.init([generation("no"), level("4")]);
         
         list entities = ei.freeEntities();
+        
+        // First entity becomes the leader
+        string leader = "";
+        int count = 0;
+        
         forall(string entity : entities) {
-            S.createAgent(entity, "VacBot");
-            S.setMainGoal(entity, [entity]);
+            if (count == 0) {
+                // Create leader
+                leader = entity;
+                S.createAgent(entity, "Leader");
+                S.setMainGoal(entity, [entity]);
+                C.println("Created leader: " + entity);
+            } else {
+                // Create followers
+                S.createAgent(entity, "Follower");
+                S.setMainGoal(entity, [entity, leader]);
+                C.println("Created follower: " + entity + " with leader: " + leader);
+            }
+            count = count + 1;
         }
+        
         ei.start();
     }
 }
-
