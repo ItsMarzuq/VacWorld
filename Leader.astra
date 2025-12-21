@@ -13,17 +13,166 @@ agent Leader {
         formula noTask();
         formula taskComplete(long, long);
         formula taskUnreachable(long, long);
+        formula lastX(long);
+        formula lastY(long);
+        formula stuckCount(int);
+        formula escapeDir(int);
     }
     
     rule +!main([string vacbot]) {
         ei.join("hw");
         ei.link(vacbot);
+        +stuckCount(0);
+        +escapeDir(0);
         C.println("Leader " + vacbot + " activated");
     }
     
     rule +$ei.event(location(long X, long Y)) {
+        !checkStuck(X, Y);
         !update();
         !doTask();
+    }
+    
+    rule +!checkStuck(long X, long Y) : lastX(long lX) & lastY(long lY) & stuckCount(int sc) {
+        if (lX == X & lY == Y) {
+            int newSc = sc + 1;
+            -+stuckCount(newSc);
+            if (newSc > 2) {
+                C.println("Leader: Stuck detected! Taking evasive action");
+                !evasiveMove();
+                -+stuckCount(0);
+            }
+        } else {
+            -+stuckCount(0);
+            -+lastX(X);
+            -+lastY(Y);
+        }
+    }
+    
+    rule +!checkStuck(long X, long Y) {
+        +lastX(X);
+        +lastY(Y);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 0 & ei.square("back", "empty") {
+        ei.move("back");
+        -+escapeDir(1);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 0 & ei.square("back", "dust") {
+        ei.move("back");
+        -+escapeDir(1);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 1 & ei.square("left", "empty") {
+        ei.move("left");
+        -+escapeDir(2);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 1 & ei.square("left", "dust") {
+        ei.move("left");
+        -+escapeDir(2);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 2 & ei.square("right", "empty") {
+        ei.move("right");
+        -+escapeDir(3);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 2 & ei.square("right", "dust") {
+        ei.move("right");
+        -+escapeDir(3);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 3 & ei.square("forward", "empty") {
+        ei.move("forward");
+        -+escapeDir(0);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ed == 3 & ei.square("forward", "dust") {
+        ei.move("forward");
+        -+escapeDir(0);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("back", "empty") {
+        ei.move("back");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("back", "dust") {
+        ei.move("back");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("left", "empty") {
+        ei.move("left");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("left", "dust") {
+        ei.move("left");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("right", "empty") {
+        ei.move("right");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("right", "dust") {
+        ei.move("right");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("forward", "empty") {
+        ei.move("forward");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) & ei.square("forward", "dust") {
+        ei.move("forward");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
+    }
+    
+    rule +!evasiveMove() : escapeDir(int ed) {
+        ei.move("back");
+        int newEd = ed + 1;
+        if (newEd > 3) {
+            newEd = 0;
+        }
+        -+escapeDir(newEd);
     }
     
     rule +!update() : ei.location(long X, long Y) & ei.direction(string D) {
@@ -245,39 +394,24 @@ agent Leader {
         ei.move("right");
     }
     
-    rule +!move() : ei.square("forward", "vac") & ei.square("left", "vac") & 
-                    ei.square("right", "vac") {
-        ei.move("back");
-    }
-    
-    rule +!move() : ei.square("forward", "vac") & ei.square("left", "obstacle") & 
-                    ei.square("right", "obstacle") {
-        ei.move("back");
-    }
-    
-    rule +!move() : ei.square("forward", "obstacle") & ei.square("left", "vac") & 
-                    ei.square("right", "vac") {
-        ei.move("back");
-    }
-    
-    rule +!move() : ei.square("forward", "vac") & ei.square("left", "vac") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("right", "empty") {
         ei.move("right");
     }
     
-    rule +!move() : ei.square("forward", "vac") & ei.square("left", "obstacle") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("right", "dust") {
         ei.move("right");
     }
     
-    rule +!move() : ei.square("forward", "vac") & ei.square("right", "vac") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("left", "empty") {
         ei.move("left");
     }
     
-    rule +!move() : ei.square("forward", "vac") & ei.square("right", "obstacle") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("left", "dust") {
         ei.move("left");
     }
     
     rule +!move() : ei.square("forward", "vac") {
-        ei.move("right");
+        ei.move("back");
     }
     
     rule +!move() : ei.square("forward", "obstacle") & ei.square("left", "obstacle") & 
@@ -294,7 +428,7 @@ agent Leader {
     }
     
     rule +!move() : ei.square("forward", "obstacle") {
-        ei.move("left");
+        ei.move("right");
     }
     
     rule +!move() : ei.square("forward", "empty") {
@@ -310,6 +444,6 @@ agent Leader {
     }
     
     rule +!move() {
-        ei.move("forward");
+        ei.move("back");
     }
 }
