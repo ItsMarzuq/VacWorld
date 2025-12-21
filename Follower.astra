@@ -6,287 +6,173 @@ agent Follower {
     
     types follower {
         formula task(string);
-        formula location(long, long);
-        formula obstacle(long, long, string, string);
-        formula direction(string);
-        formula route(list);
-        formula currentTask(long, long);
         formula waitingForTask(boolean);
         formula leader(string);
         formula requestTask();
         formula assignTask(long, long);
         formula noTask();
         formula taskComplete(long, long);
-        formula taskUnreachable(long, long);
-        formula visited(long, long);
-        formula visitCount(int);
-        formula retryCount(int);
+        formula targetX(long);
+        formula targetY(long);
     }
     
     rule +!main([string vacbot, string leaderName]) {
         ei.join("hw");
         ei.link(vacbot);
         +leader(leaderName);
-        +visitCount(0);
-        +retryCount(0);
+        +waitingForTask(false);
         C.println("Follower " + vacbot + " activated, leader: " + leaderName);
-        !requestTask();
     }
     
-    // Triggered when follower moves to a new location
     rule +$ei.event(location(long X, long Y)) {
         !update();
-        !trackVisit(X, Y);
         
-        // Check if we're at the task location
-        if (currentTask(long taskX, long taskY) & X == taskX & Y == taskY) {
-            !cleanTask(taskX, taskY);
+        if (targetX(long tX) & targetY(long tY) & X == tX & Y == tY) {
+            !cleanTask(tX, tY);
         } else {
-            string a;
-            !task(a);
+            !doTask();
         }
     }
     
-    // Track visited locations to help avoid loops
-    rule +!trackVisit(long X, long Y) {
-        if (~visited(X, Y)) {
-            +visited(X, Y);
-        }
-        
-        // Increment visit counter and clear history periodically
-        if (visitCount(int count)) {
-            int newCount = count + 1;
-            -+visitCount(newCount);
-            
-            // Clear visited history every 50 moves to allow revisiting
-            if (newCount > 50) {
-                foreach(visited(long vX, long vY)) {
-                    -visited(vX, vY);
-                }
-                -+visitCount(0);
-            }
-        }
-    }
-    
-    // Update obstacles as they are discovered
     rule +!update() : ei.location(long X, long Y) & ei.direction(string D) {
-        foreach(ei.square(string location, "obstacle") & 
-                ~routing.obstacle(X, Y, D, location)) {
-            routing.recordObstacle(X, Y, D, location);
+        foreach(ei.square(string loc, "obstacle") & 
+                ~routing.obstacle(X, Y, D, loc)) {
+            routing.recordObstacle(X, Y, D, loc);
         }
         long maxX = routing.maxX() + 1;
         long maxY = routing.maxY() + 1;
         routing.updateBoundary(maxX, maxY);
     }
     
-    // Request a task from the leader
-    rule +!requestTask() : leader(string leaderName) {
-        C.println("Follower: Requesting task from leader");
-        +waitingForTask(true);
-        send(leaderName, "request", requestTask());
+    rule +!askForTask() : leader(string leaderName) & waitingForTask(false) {
+        -+waitingForTask(true);
+        send(request, leaderName, requestTask());
     }
     
-    // Receive task assignment from leader
-    rule @message("inform", string sender, assignTask(long X, long Y)) : waitingForTask(true) {
-        C.println("Follower: Received task to clean (" + X + ", " + Y + ")");
-        -waitingForTask(true);
-        -+retryCount(0);
-        +currentTask(X, Y);
-        !navigateToTask(X, Y);
+    rule +!askForTask() {
     }
     
-    // No task available
-    rule @message("inform", string sender, noTask()) : waitingForTask(true) {
-        C.println("Follower: No tasks available, will explore");
-        -waitingForTask(true);
-        string a;
-        !task(a);
+    rule @message(inform, string sender, assignTask(long X, long Y)) {
+        -+waitingForTask(false);
+        +targetX(X);
+        +targetY(Y);
     }
     
-    // Navigate to the task location with retry logic
-    rule +!navigateToTask(long taskX, long taskY) : ei.location(long X, long Y) & retryCount(int retry) {
-        C.println("Follower: Planning route from (" + X + ", " + Y + ") to (" + taskX + ", " + taskY + ")");
-        list CodedRoute = routing.routeTo(X, Y, taskX, taskY);
-        C.println("Follower: Route = " + CodedRoute);
-        
-        if (CodedRoute == []) {
-            if (retry < 2) {
-                // Retry route finding (obstacles may have been updated)
-                C.println("Follower: Route not found, retry " + retry);
-                int newRetry = retry + 1;
-                -+retryCount(newRetry);
-                !navigateToTask(taskX, taskY);
-            } else {
-                // Give up and inform leader
-                C.println("Follower: Task unreachable after retries, informing leader");
-                -currentTask(taskX, taskY);
-                -+retryCount(0);
-                if (leader(string leaderName)) {
-                    send(leaderName, "inform", taskUnreachable(taskX, taskY));
-                }
-                !requestTask();
-            }
-        } else {
-            -+retryCount(0);
-            +route(CodedRoute);
-            string a;
-            !task(a);
-        }
+    rule @message(inform, string sender, noTask()) {
+        -+waitingForTask(false);
     }
     
-    // Clean the task location, then move smartly
-    rule +!cleanTask(long taskX, long taskY) : ei.square("here", "dust") {
-        C.println("Follower: Cleaning assigned dust at (" + taskX + ", " + taskY + ")");
+    rule +!cleanTask(long taskX, long taskY) : ei.square("here", "dust") & leader(string leaderName) {
         ei.clean();
-        -currentTask(taskX, taskY);
-        if (route(list R)) {
-            -route(R);
-        }
-        
-        // Notify leader of completion
-        if (leader(string leaderName)) {
-            send(leaderName, "inform", taskComplete(taskX, taskY));
-        }
-        
-        // Move smartly after cleaning
-        !smartMove();
-        
-        // Request next task
-        !requestTask();
+        -targetX(taskX);
+        -targetY(taskY);
+        send(inform, leaderName, taskComplete(taskX, taskY));
+        !move();
     }
     
-    // If we arrive but there's no dust, notify and request new task
-    rule +!cleanTask(long taskX, long taskY) {
-        C.println("Follower: Arrived at (" + taskX + ", " + taskY + ") but no dust found");
-        -currentTask(taskX, taskY);
-        if (route(list R)) {
-            -route(R);
-        }
-        
-        if (leader(string leaderName)) {
-            send(leaderName, "inform", taskComplete(taskX, taskY));
-        }
-        
-        !requestTask();
+    rule +!cleanTask(long taskX, long taskY) : leader(string leaderName) {
+        -targetX(taskX);
+        -targetY(taskY);
+        send(inform, leaderName, taskComplete(taskX, taskY));
+        !move();
     }
     
-    // Smart movement - try multiple directions
-    rule +!smartMove() {
-        if (ei.square("forward", "empty") | ei.square("forward", "dust")) {
-            ei.move("forward");
-        } else {
-            if (ei.square("left", "empty") | ei.square("left", "dust")) {
-                ei.move("left");
-            } else {
-                if (ei.square("right", "empty") | ei.square("right", "dust")) {
-                    ei.move("right");
-                } else {
-                    ei.move("back");
-                }
-            }
-        }
-    }
-    
-    // Follow the route
-    rule +!task(string action) : route([move(string direction)]) {
-        -route([move(direction)]);
-        !go(move(direction), action);
-    }
-    
-    rule +!task(string action) : route([move(string direction) | list L]) {
-        -+route(L);
-        !go(move(direction), action);
-    }
-    
-    rule +!go(move(string direction), string action) {
-        ei.move(direction);
-        action = direction;
-    }
-    
-    // CLEAN DUST when standing on it (while exploring), then move smartly
-    rule +!task(string action) : ei.square("here", "dust") & ~currentTask(long X, long Y) {
-        C.println("Follower: Cleaning dust while exploring");
+    rule +!doTask() : ei.square("here", "dust") & ei.location(long X, long Y) & leader(string leaderName) {
         ei.clean();
-        !smartMove();
-        action = "clean";
+        send(inform, leaderName, taskComplete(X, Y));
+        if (targetX(long tX) & targetY(long tY) & tX == X & tY == Y) {
+            -targetX(tX);
+            -targetY(tY);
+        }
+        !move();
     }
     
-    // Exploration behavior - prefer unvisited or dust
-    rule +!task(string action) : ei.square("forward", "dust") & ~currentTask(long X, long Y) {
+    rule +!doTask() : ~targetX(long tX) {
+        !askForTask();
+        !move();
+    }
+    
+    rule +!doTask() {
+        !move();
+    }
+    
+    rule +!move() : ei.square("forward", "dust") {
         ei.move("forward");
-        action = "move";
     }
     
-    rule +!task(string action) : ei.square("forward", "empty") & ~currentTask(long X, long Y) {
-        ei.move("forward");
-        action = "move";
-    }
-    
-    rule +!task(string action) : ei.square("left", "dust") & ~currentTask(long X, long Y) {
+    rule +!move() : ei.square("left", "dust") {
         ei.move("left");
-        action = "move";
     }
     
-    rule +!task(string action) : ei.square("left", "empty") & ~currentTask(long X, long Y) {
-        ei.move("left");
-        action = "move";
-    }
-    
-    rule +!task(string action) : ei.square("right", "dust") & ~currentTask(long X, long Y) {
+    rule +!move() : ei.square("right", "dust") {
         ei.move("right");
-        action = "move";
     }
     
-    rule +!task(string action) : ei.square("right", "empty") & ~currentTask(long X, long Y) {
-        ei.move("right");
-        action = "move";
-    }
-    
-    // Dead end handling
-    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("left", "obstacle") & ei.square("right", "obstacle") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("left", "vac") & 
+                    ei.square("right", "vac") {
         ei.move("back");
-        action = "move";
     }
     
-    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("left", "obstacle") {
-        ei.move("right");
-        action = "move";
-    }
-    
-    rule +!task(string action) : ei.square("forward", "obstacle") & ei.square("right", "obstacle") {
-        ei.move("left");
-        action = "move";
-    }
-    
-    rule +!task(string action) : ei.square("forward", "obstacle") {
-        ei.move("left");
-        action = "move";
-    }
-    
-    // VacBot collision avoidance
-    rule +!task(string action) : ei.square("forward", "vac") & ei.square("left", "vac") & ei.square("right", "vac") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("left", "obstacle") & 
+                    ei.square("right", "obstacle") {
         ei.move("back");
-        action = "move";
     }
     
-    rule +!task(string action) : ei.square("forward", "vac") & ei.square("left", "vac") {
+    rule +!move() : ei.square("forward", "obstacle") & ei.square("left", "vac") & 
+                    ei.square("right", "vac") {
+        ei.move("back");
+    }
+    
+    rule +!move() : ei.square("forward", "vac") & ei.square("left", "vac") {
         ei.move("right");
-        action = "move";
     }
     
-    rule +!task(string action) : ei.square("forward", "vac") & ei.square("right", "vac") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("left", "obstacle") {
+        ei.move("right");
+    }
+    
+    rule +!move() : ei.square("forward", "vac") & ei.square("right", "vac") {
         ei.move("left");
-        action = "move";
     }
     
-    rule +!task(string action) : ei.square("forward", "vac") {
+    rule +!move() : ei.square("forward", "vac") & ei.square("right", "obstacle") {
         ei.move("left");
-        action = "move";
     }
     
-    // Default: move forward
-    rule +!task(string action) {
+    rule +!move() : ei.square("forward", "vac") {
+        ei.move("left");
+    }
+    
+    rule +!move() : ei.square("forward", "obstacle") & ei.square("left", "obstacle") & 
+                    ei.square("right", "obstacle") {
+        ei.move("back");
+    }
+    
+    rule +!move() : ei.square("forward", "obstacle") & ei.square("left", "obstacle") {
+        ei.move("right");
+    }
+    
+    rule +!move() : ei.square("forward", "obstacle") & ei.square("right", "obstacle") {
+        ei.move("left");
+    }
+    
+    rule +!move() : ei.square("forward", "obstacle") {
+        ei.move("left");
+    }
+    
+    rule +!move() : ei.square("forward", "empty") {
         ei.move("forward");
-        action = "move";
+    }
+    
+    rule +!move() : ei.square("left", "empty") {
+        ei.move("left");
+    }
+    
+    rule +!move() : ei.square("right", "empty") {
+        ei.move("right");
+    }
+    
+    rule +!move() {
+        ei.move("forward");
     }
 }

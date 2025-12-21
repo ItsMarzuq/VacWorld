@@ -4,27 +4,24 @@ agent Main {
     module System S;
 
     rule +!main(list args) {
-        ei.launch("hw","dependency/vacuumworld-1.3.0.jar");
+        ei.launch("hw", "dependency/vacuumworld-1.3.0.jar");
         ei.init([generation("no"), level("4")]);
         
         list entities = ei.freeEntities();
         
-        // First entity becomes the leader
-        string leader = "";
+        string leaderName = "";
         int count = 0;
         
         forall(string entity : entities) {
             if (count == 0) {
-                // Create leader
-                leader = entity;
+                leaderName = entity;
                 S.createAgent(entity, "Leader");
                 S.setMainGoal(entity, [entity]);
                 C.println("Created leader: " + entity);
             } else {
-                // Create followers
                 S.createAgent(entity, "Follower");
-                S.setMainGoal(entity, [entity, leader]);
-                C.println("Created follower: " + entity + " with leader: " + leader);
+                S.setMainGoal(entity, [entity, leaderName]);
+                C.println("Created follower: " + entity);
             }
             count = count + 1;
         }
