@@ -195,6 +195,7 @@ agent Leader {
     rule +!recordDustLocation(long X, long Y, string D, "here") {
         if (~dustLocation(X, Y)) {
             +dustLocation(X, Y);
+            C.println("Leader: Found dust HERE at (" + X + ", " + Y + ")");
         }
     }
     
@@ -202,6 +203,7 @@ agent Leader {
         long newY = Y - 1;
         if (~dustLocation(X, newY)) {
             +dustLocation(X, newY);
+            C.println("Leader: Found dust FORWARD at (" + X + ", " + newY + ")");
         }
     }
     
@@ -209,6 +211,7 @@ agent Leader {
         long newY = Y + 1;
         if (~dustLocation(X, newY)) {
             +dustLocation(X, newY);
+            C.println("Leader: Found dust FORWARD at (" + X + ", " + newY + ")");
         }
     }
     
@@ -216,6 +219,7 @@ agent Leader {
         long newX = X + 1;
         if (~dustLocation(newX, Y)) {
             +dustLocation(newX, Y);
+            C.println("Leader: Found dust FORWARD at (" + newX + ", " + Y + ")");
         }
     }
     
@@ -223,6 +227,7 @@ agent Leader {
         long newX = X - 1;
         if (~dustLocation(newX, Y)) {
             +dustLocation(newX, Y);
+            C.println("Leader: Found dust FORWARD at (" + newX + ", " + Y + ")");
         }
     }
     
@@ -230,6 +235,7 @@ agent Leader {
         long newX = X - 1;
         if (~dustLocation(newX, Y)) {
             +dustLocation(newX, Y);
+            C.println("Leader: Found dust LEFT at (" + newX + ", " + Y + ")");
         }
     }
     
@@ -237,6 +243,7 @@ agent Leader {
         long newX = X + 1;
         if (~dustLocation(newX, Y)) {
             +dustLocation(newX, Y);
+            C.println("Leader: Found dust LEFT at (" + newX + ", " + Y + ")");
         }
     }
     
@@ -244,6 +251,7 @@ agent Leader {
         long newY = Y - 1;
         if (~dustLocation(X, newY)) {
             +dustLocation(X, newY);
+            C.println("Leader: Found dust LEFT at (" + X + ", " + newY + ")");
         }
     }
     
@@ -251,6 +259,7 @@ agent Leader {
         long newY = Y + 1;
         if (~dustLocation(X, newY)) {
             +dustLocation(X, newY);
+            C.println("Leader: Found dust LEFT at (" + X + ", " + newY + ")");
         }
     }
     
@@ -258,6 +267,7 @@ agent Leader {
         long newX = X + 1;
         if (~dustLocation(newX, Y)) {
             +dustLocation(newX, Y);
+            C.println("Leader: Found dust RIGHT at (" + newX + ", " + Y + ")");
         }
     }
     
@@ -265,6 +275,7 @@ agent Leader {
         long newX = X - 1;
         if (~dustLocation(newX, Y)) {
             +dustLocation(newX, Y);
+            C.println("Leader: Found dust RIGHT at (" + newX + ", " + Y + ")");
         }
     }
     
@@ -272,6 +283,7 @@ agent Leader {
         long newY = Y + 1;
         if (~dustLocation(X, newY)) {
             +dustLocation(X, newY);
+            C.println("Leader: Found dust RIGHT at (" + X + ", " + newY + ")");
         }
     }
     
@@ -279,6 +291,7 @@ agent Leader {
         long newY = Y - 1;
         if (~dustLocation(X, newY)) {
             +dustLocation(X, newY);
+            C.println("Leader: Found dust RIGHT at (" + X + ", " + newY + ")");
         }
     }
     
@@ -287,6 +300,7 @@ agent Leader {
         long newY = Y - 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-LEFT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -295,6 +309,7 @@ agent Leader {
         long newY = Y - 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-RIGHT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -303,6 +318,7 @@ agent Leader {
         long newY = Y + 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-LEFT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -311,6 +327,7 @@ agent Leader {
         long newY = Y + 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-RIGHT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -319,6 +336,7 @@ agent Leader {
         long newY = Y - 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-LEFT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -327,6 +345,7 @@ agent Leader {
         long newY = Y + 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-RIGHT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -335,6 +354,7 @@ agent Leader {
         long newY = Y + 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-LEFT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -343,6 +363,7 @@ agent Leader {
         long newY = Y - 1;
         if (~dustLocation(newX, newY)) {
             +dustLocation(newX, newY);
+            C.println("Leader: Found dust FORWARD-RIGHT at (" + newX + ", " + newY + ")");
         }
     }
     
@@ -352,14 +373,17 @@ agent Leader {
     rule @message(request, string follower, requestTask()) : 
          dustLocation(long dustX, long dustY) & ~assignedTask(string wrkr, dustX, dustY) {
         +assignedTask(follower, dustX, dustY);
+        C.println("Leader: Assigning task (" + dustX + ", " + dustY + ") to " + follower);
         send(inform, follower, assignTask(dustX, dustY));
     }
     
     rule @message(request, string follower, requestTask()) {
+        C.println("Leader: No tasks available for " + follower);
         send(inform, follower, noTask());
     }
     
     rule @message(inform, string follower, taskComplete(long X, long Y)) {
+        C.println("Leader: Task (" + X + ", " + Y + ") completed by " + follower);
         -dustLocation(X, Y);
         if (assignedTask(follower, X, Y)) {
             -assignedTask(follower, X, Y);
@@ -367,12 +391,14 @@ agent Leader {
     }
     
     rule @message(inform, string follower, taskUnreachable(long X, long Y)) {
+        C.println("Leader: Task (" + X + ", " + Y + ") unreachable by " + follower);
         if (assignedTask(follower, X, Y)) {
             -assignedTask(follower, X, Y);
         }
     }
     
     rule +!doTask() : ei.square("here", "dust") & ei.location(long X, long Y) {
+        C.println("Leader: Cleaning dust at (" + X + ", " + Y + ")");
         ei.clean();
         -dustLocation(X, Y);
         !move();

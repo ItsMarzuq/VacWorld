@@ -195,6 +195,7 @@ agent Follower {
     
     rule +!askForTask() : leader(string leaderName) & waitingForTask(false) {
         -+waitingForTask(true);
+        C.println("Follower: Requesting task from " + leaderName);
         send(request, leaderName, requestTask());
     }
     
@@ -205,13 +206,16 @@ agent Follower {
         -+waitingForTask(false);
         +targetX(X);
         +targetY(Y);
+        C.println("Follower: Received task to clean (" + X + ", " + Y + ")");
     }
     
     rule @message(inform, string sender, noTask()) {
         -+waitingForTask(false);
+        C.println("Follower: No task available, exploring");
     }
     
     rule +!cleanTask(long taskX, long taskY) : ei.square("here", "dust") & leader(string leaderName) {
+        C.println("Follower: Cleaning assigned dust at (" + taskX + ", " + taskY + ")");
         ei.clean();
         -targetX(taskX);
         -targetY(taskY);
@@ -220,6 +224,7 @@ agent Follower {
     }
     
     rule +!cleanTask(long taskX, long taskY) : leader(string leaderName) {
+        C.println("Follower: Arrived at (" + taskX + ", " + taskY + ") but no dust found");
         -targetX(taskX);
         -targetY(taskY);
         send(inform, leaderName, taskComplete(taskX, taskY));
@@ -227,6 +232,7 @@ agent Follower {
     }
     
     rule +!doTask() : ei.square("here", "dust") & ei.location(long X, long Y) & leader(string leaderName) {
+        C.println("Follower: Found and cleaning dust at (" + X + ", " + Y + ")");
         ei.clean();
         send(inform, leaderName, taskComplete(X, Y));
         if (targetX(long tX) & targetY(long tY) & tX == X & tY == Y) {
