@@ -14,7 +14,7 @@ This project implements a multi-agent vacuum cleaning system using the ASTRA age
 - **Dynamic Exploration**: Agents explore the environment when no tasks are available
 
 ## File Structure
-![alt text](images/FileStructure.jpg)
+![alt text](FileStructure.jpg)
 
 ## Requirements
 
